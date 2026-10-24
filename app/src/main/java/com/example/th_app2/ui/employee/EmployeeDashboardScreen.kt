@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Payments
@@ -12,9 +11,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import com.example.th_app2.data.model.Salary
+import com.example.th_app2.data.model.UserSession
 import com.example.th_app2.data.model.WorkLog
+import com.example.th_app2.ui.components.AppHeader
 import com.example.th_app2.ui.employee.attendance.AttendanceScreen
 import com.example.th_app2.ui.employee.history.WorkLogHistoryScreen
 import com.example.th_app2.ui.employee.salary.PersonalSalaryScreen
@@ -26,46 +26,33 @@ private enum class EmployeeTab(val title: String, val icon: ImageVector) {
     SALARY("Bảng lương", Icons.Default.Payments)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EmployeeDashboardScreen(
-    employeeName: String = "Nguyen Van An",
-    employeeId: Int = 1,
-    hourlyRate: Double = 50000.0,
-    onLogout: () -> Unit = {},
-    // DB callbacks - thay bằng hàm thật từ DatabaseHelper khi tích hợp
+    session: UserSession?,
+    onLogout: () -> Unit,
     onCheckIn: (Int) -> Boolean = { true },
     onCheckOut: (Int) -> Boolean = { true },
     getTodayWorkLog: (Int) -> WorkLog? = { null },
     getWorkLogs: (Int, Int, Int) -> List<WorkLog> = { _, _, _ -> emptyList() },
     getSalary: (Int, Int, Int) -> Salary? = { _, _, _ -> null }
 ) {
+    val employeeId = session?.employeeId ?: -1
+    val hourlyRate = session?.hourlyRate ?: 0.0
+
     val tabs = EmployeeTab.entries
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Xin chào, $employeeName",
-                        fontWeight = FontWeight.SemiBold
-                    )
-                },
-                actions = {
-                    IconButton(onClick = onLogout) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = "Đăng xuất"
-                        )
-                    }
-                }
+            AppHeader(
+                title = "Cổng Nhân viên",
+                session = session,
+                onLogout = onLogout
             )
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // === TAB ROW ===
             TabRow(selectedTabIndex = pagerState.currentPage) {
                 tabs.forEachIndexed { index, tab ->
                     Tab(
@@ -77,7 +64,6 @@ fun EmployeeDashboardScreen(
                 }
             }
 
-            // === NỘI DUNG TỪNG TAB ===
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
