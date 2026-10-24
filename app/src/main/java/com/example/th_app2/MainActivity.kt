@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     AppRootNavigation(
+                        dbHelper = dbHelper,
                         accountDao = accountDao,
                         prefManager = prefManager
                     )
@@ -61,6 +62,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AppRootNavigation(
+    dbHelper: DatabaseHelper,
     accountDao: AccountDao,
     prefManager: PrefManager
 ) {
@@ -115,7 +117,12 @@ fun AppRootNavigation(
                     prefManager.clearSession()
                     currentSession = null
                     currentScreen = AppDestination.LOGIN
-                }
+                },
+                onCheckIn = { empId -> dbHelper.doCheckIn(empId) },
+                onCheckOut = { empId -> dbHelper.doCheckOut(empId) },
+                getTodayWorkLog = { empId -> dbHelper.getTodayWorkLog(empId) },
+                getWorkLogs = { empId, m, y -> dbHelper.getWorkLogsByEmployee(empId, m, y) },
+                getSalary = { empId, m, y -> dbHelper.getSalaryByEmployee(empId, m, y) }
             )
         }
     }
