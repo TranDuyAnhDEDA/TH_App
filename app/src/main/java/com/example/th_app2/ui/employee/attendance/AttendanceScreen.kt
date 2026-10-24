@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.th_app2.data.model.WorkLog
+import com.example.th_app2.utils.TimeSalaryHelper
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
@@ -22,8 +23,7 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AttendanceScreen(
-    employeeId: Int = 1, // TODO: lấy từ PrefManager khi Thành viên 1 xong
-    // TODO: thay bằng hàm thật từ DatabaseHelper
+    employeeId: Int = 1,
     onCheckIn: (Int) -> Boolean = { true },
     onCheckOut: (Int) -> Boolean = { true },
     getTodayWorkLog: (Int) -> WorkLog? = { null }
@@ -180,10 +180,8 @@ fun AttendanceScreen(
                     }
                     val success = onCheckIn(employeeId)
                     if (success) {
-                        val now = SimpleDateFormat("HH:mm", Locale.getDefault())
-                            .format(Calendar.getInstance().time)
-                        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                            .format(Calendar.getInstance().time)
+                        val now = TimeSalaryHelper.getCurrentTime()
+                        val today = TimeSalaryHelper.getCurrentDate()
                         todayLog = WorkLog(
                             employeeId = employeeId,
                             workDate = today,
@@ -226,12 +224,10 @@ fun AttendanceScreen(
                     }
                     val success = onCheckOut(employeeId)
                     if (success) {
-                        val now = SimpleDateFormat("HH:mm", Locale.getDefault())
-                            .format(Calendar.getInstance().time)
+                        val now = TimeSalaryHelper.getCurrentTime()
                         val checkIn = todayLog?.checkInTime ?: return@Button
-                        val totalH = calculateHours(checkIn, now)
-                        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                            .format(Calendar.getInstance().time)
+                        val totalH = TimeSalaryHelper.calculateWorkingHours(checkIn, now)
+                        val today = TimeSalaryHelper.getCurrentDate()
                         todayLog = WorkLog(
                             employeeId = employeeId,
                             workDate = today,
@@ -273,14 +269,6 @@ fun AttendanceScreen(
             }
         }
     }
-}
-
-private fun calculateHours(checkIn: String, checkOut: String): Double {
-    val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-    val inTime = sdf.parse(checkIn) ?: return 0.0
-    val outTime = sdf.parse(checkOut) ?: return 0.0
-    val diffMs = outTime.time - inTime.time
-    return diffMs / (1000.0 * 60 * 60)
 }
 
 private enum class AttendanceStatus {

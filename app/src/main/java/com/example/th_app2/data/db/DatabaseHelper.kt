@@ -7,9 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper
 import com.example.th_app2.data.model.Employee
 import com.example.th_app2.data.model.Salary
 import com.example.th_app2.data.model.WorkLog
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
+import com.example.th_app2.utils.TimeSalaryHelper
 
 class DatabaseHelper(context: Context) :
     SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
@@ -195,13 +193,11 @@ class DatabaseHelper(context: Context) :
         db.insert(TABLE_SALARY, null, salarySample)
     }
 
-    // ===== 6 HÀM CONTRACT INTERFACE (Member 3) =====
+    // ===== 6 HÀM CONTRACT INTERFACE =====
 
-    private fun today(): String =
-        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Calendar.getInstance().time)
+    private fun today(): String = TimeSalaryHelper.getCurrentDate()
 
-    private fun nowTime(): String =
-        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Calendar.getInstance().time)
+    private fun nowTime(): String = TimeSalaryHelper.getCurrentTime()
 
     fun getTodayWorkLog(employeeId: Int): WorkLog? {
         val db = readableDatabase
@@ -242,10 +238,7 @@ class DatabaseHelper(context: Context) :
         val log = getTodayWorkLog(employeeId) ?: return false
         if (log.status == "Completed") return false
         val outTime = nowTime()
-        val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val inParsed = sdf.parse(log.checkInTime) ?: return false
-        val outParsed = sdf.parse(outTime) ?: return false
-        val totalH = (outParsed.time - inParsed.time) / (1000.0 * 60 * 60)
+        val totalH = TimeSalaryHelper.calculateWorkingHours(log.checkInTime, outTime)
         val db = writableDatabase
         val values = ContentValues().apply {
             put("checkOutTime", outTime)
