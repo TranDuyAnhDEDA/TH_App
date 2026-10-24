@@ -351,4 +351,136 @@ class DatabaseHelper(context: Context) :
         }
         return rowsAffected > 0
     }
+
+    // ==========================================================
+    // CÁC HÀM QUẢN LÝ VÀ TÍNH LƯƠNG (SALARY MANAGEMENT)
+    // ==========================================================
+
+    /**
+     * Lấy báo cáo lương theo tháng và năm
+     */
+    fun getMonthlySalaries(month: Int, year: Int): List<SalaryReportItem> {
+        val list = mutableListOf<SalaryReportItem>()
+        val db = readableDatabase
+        val cursor = db.rawQuery(
+            """
+            SELECT e.id, e.code, e.fullname, e.hourlyRate, 
+                   COALESCE(s.totalHours, 0.0), 
+                   COALESCE(s.overtimeHours, 0.0), 
+                   COALESCE(s.totalSalary, 0.0), 
+                   COALESCE(s.status, 'Chưa tính')
+            FROM $TABLE_EMPLOYEE e
+            LEFT JOIN $TABLE_SALARY s ON e.id = s.employeeId AND s.month = ? AND s.year = ?
+            ORDER BY e.id DESC
+            """.trimIndent(),
+            arrayOf(month.toString(), year.toString())
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                val totalH = it.getDouble(4)
+                val otH = it.getDouble(5)
+                val regH = if (totalH >= otH) totalH - otH else totalH
+                list.add(
+                    SalaryReportItem(
+                        employeeId = it.getInt(0),
+                        employeeCode = it.getString(1),
+                        employeeName = it.getString(2),
+                        hourlyRate = it.getDouble(3),
+                        totalHours = totalH,
+                        overtimeHours = otH,
+                        regularHours = regH,
+                        totalSalary = it.getDouble(6),
+                        status = it.getString(7)
+                    )
+                )
+            }
+        }
+        return list
+    }
+
+    /**
+     * Tự động tính toán lương cho tất cả nhân viên theo tháng và năm
+     * Công thức: Lương = (Giờ thường * hourlyRate) + (Giờ OT * hourlyRate * 1.5)
+     */
+    fun calculateMonthlySalaries(month: Int, year: Int): Int {
+        val employees = getAllEmployees()
+        val db = writableDatabase
+        val monthStr = if (month < 10) "0$month" else "$month"
+        val datePrefix = "$year-$monthStr-%"
+        var calculatedCount = 0
+
+        db.beginTransaction()
+        try {
+            for (emp in employees) {
+                // Tính giờ làm từ WorkLog
+                val logCursor = db.rawQuery(
+                    "SELECT totalHours FROM $TABLE_WORKLOG WHERE employeeId = ? AND workDate LIKE ?",
+                    arrayOf(emp.id.toString(), datePrefix)
+                )
+                var totalRegularHours = 0.0
+                var totalOtHours = 0.0
+
+                logCursor.use {
+                    while (it.moveToNext()) {
+                        val hours = it.getDouble(0)
+                        if (hours <= 8.0) {
+                            totalRegularHours += hours
+                        } else {
+                            totalRegularHours += 8.0
+                            totalOtHours += (hours - 8.0)
+                        }
+                    }
+                }
+
+                val totalHours = totalRegularHours + totalOtHours
+                val salaryAmount = (totalRegularHours * emp.hourlyRate) + (totalOtHours * emp.hourlyRate * 1.5)
+
+                // Kiểm tra xem đã có bản ghi lương tháng này chưa
+                val checkCursor = db.rawQuery(
+                    "SELECT id FROM $TABLE_SALARY WHERE employeeId = ? AND month = ? AND year = ?",
+                    arrayOf(emp.id.toString(), month.toString(), year.toString())
+                )
+                val exists = checkCursor.moveToFirst()
+                checkCursor.close()
+
+                val values = ContentValues().apply {
+                    put("employeeId", emp.id)
+                    put("month", month)
+                    put("year", year)
+                    put("totalHours", totalHours)
+                    put("overtimeHours", totalOtHours)
+                    put("totalSalary", salaryAmount)
+                    put("status", "Đã tính")
+                }
+
+                if (exists) {
+                    db.update(
+                        TABLE_SALARY,
+                        values,
+                        "employeeId = ? AND month = ? AND year = ?",
+                        arrayOf(emp.id.toString(), month.toString(), year.toString())
+                    )
+                } else {
+                    db.insert(TABLE_SALARY, null, values)
+                }
+                calculatedCount++
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return calculatedCount
+    }
 }
+
+data class SalaryReportItem(
+    val employeeId: Int,
+    val employeeCode: String,
+    val employeeName: String,
+    val hourlyRate: Double,
+    val totalHours: Double,
+    val overtimeHours: Double,
+    val regularHours: Double,
+    val totalSalary: Double,
+    val status: String
+)

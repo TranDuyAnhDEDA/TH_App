@@ -13,38 +13,30 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.th_app2.data.db.DatabaseHelper
+import com.example.th_app2.data.db.SalaryReportItem
 import java.text.DecimalFormat
-
-// Model hiển thị bảng lương
-data class SalaryUiItem(
-    val employeeCode: String,
-    val employeeName: String,
-    val hourlyRate: Double,
-    val regularHours: Double,
-    val overtimeHours: Double,
-    val totalSalary: Double,
-    val status: String
-)
 
 @Composable
 fun SalaryManagementScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val dbHelper = remember { DatabaseHelper(context) }
     val formatter = remember { DecimalFormat("#,###") }
 
     var selectedMonth by remember { mutableIntStateOf(10) }
     var selectedYear by remember { mutableIntStateOf(2026) }
+    var salaryList by remember { mutableStateOf<List<SalaryReportItem>>(emptyList()) }
 
-    // Dữ liệu mẫu ban đầu
-    var salaryList by remember {
-        mutableStateOf(
-            listOf(
-                SalaryUiItem("NV001", "Nguyen Van An", 50000.0, 16.0, 2.5, 987500.0, "Đã tính"),
-                SalaryUiItem("NV002", "Tran Thi Binh", 60000.0, 8.0, 1.0, 570000.0, "Đã tính"),
-                SalaryUiItem("NV003", "Le Thi Hoa", 75000.0, 8.0, 0.0, 600000.0, "Đã tính")
-            )
-        )
+    // Tải dữ liệu bảng lương từ CSDL
+    fun reloadSalaries() {
+        salaryList = dbHelper.getMonthlySalaries(selectedMonth, selectedYear)
+    }
+
+    // Tự động tải lại khi đổi tháng hoặc năm
+    LaunchedEffect(selectedMonth, selectedYear) {
+        reloadSalaries()
     }
 
     val totalCompanySalary = remember(salaryList) { salaryList.sumOf { it.totalSalary } }
@@ -55,7 +47,7 @@ fun SalaryManagementScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Chọn tháng và năm
+        // Bộ chọn tháng và năm
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -86,10 +78,12 @@ fun SalaryManagementScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Nút tính lương
+        // Nút kích hoạt tính lương tự động từ CSDL
         Button(
             onClick = {
-                Toast.makeText(context, "Đã kích hoạt tính lương Tháng $selectedMonth/$selectedYear!", Toast.LENGTH_SHORT).show()
+                val count = dbHelper.calculateMonthlySalaries(selectedMonth, selectedYear)
+                Toast.makeText(context, "Đã tính lương tháng $selectedMonth cho $count nhân viên!", Toast.LENGTH_SHORT).show()
+                reloadSalaries()
             },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
@@ -106,7 +100,7 @@ fun SalaryManagementScreen(
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Tổng quỹ lương tháng:", style = MaterialTheme.typography.bodyMedium)
+                Text("Tổng chi lương:", style = MaterialTheme.typography.bodyMedium)
                 Text(
                     text = "${formatter.format(totalCompanySalary)} VNĐ",
                     style = MaterialTheme.typography.headlineSmall,
@@ -138,22 +132,36 @@ fun SalaryManagementScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Danh sách lương từng người
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(salaryList) { item ->
-                SalaryCard(item = item, formatter = formatter)
+        // Danh sách bảng lương
+        if (salaryList.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Chưa có nhân viên nào trong CSDL.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(salaryList, key = { it.employeeId }) { item ->
+                    SalaryCard(item = item, formatter = formatter)
+                }
             }
         }
     }
 }
 
-// Thẻ bảng lương từng nhân viên
+// Thẻ hiển thị lương từng nhân viên
 @Composable
 fun SalaryCard(
-    item: SalaryUiItem,
+    item: SalaryReportItem,
     formatter: DecimalFormat
 ) {
     ElevatedCard(
@@ -184,14 +192,14 @@ fun SalaryCard(
                 }
 
                 Surface(
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    color = if (item.status == "Đã tính") MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(6.dp)
                 ) {
                     Text(
                         text = item.status,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                        color = if (item.status == "Đã tính") MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -212,7 +220,7 @@ fun SalaryCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Tổng thực nhận
+            // Tổng lương thực nhận
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
