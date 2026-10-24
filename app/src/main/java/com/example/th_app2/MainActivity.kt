@@ -1,32 +1,19 @@
 package com.example.th_app2
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.example.th_app2.data.db.AccountDao
 import com.example.th_app2.data.db.DatabaseHelper
-import com.example.th_app2.data.model.UserSession
 import com.example.th_app2.data.pref.PrefManager
-import com.example.th_app2.ui.admin.AdminDashboardScreen
 import com.example.th_app2.ui.auth.LoginScreen
-import com.example.th_app2.ui.employee.EmployeeDashboardScreen
 import com.example.th_app2.ui.theme.THAPP2Theme
-
-enum class AppDestination {
-    LOGIN,
-    ADMIN_DASHBOARD,
-    EMPLOYEE_DASHBOARD
-}
 
 class MainActivity : ComponentActivity() {
 
@@ -47,76 +34,21 @@ class MainActivity : ComponentActivity() {
             THAPP2Theme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = Color(0xFF0F172A)
                 ) {
-                    AppRootNavigation(
+                    LoginScreen(
                         accountDao = accountDao,
-                        prefManager = prefManager
+                        prefManager = prefManager,
+                        onLoginSuccess = { role ->
+                            Toast.makeText(
+                                this,
+                                "Đăng nhập thành công! Vai trò: $role",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun AppRootNavigation(
-    accountDao: AccountDao,
-    prefManager: PrefManager
-) {
-    // Tự động kiểm tra phiên đăng nhập đã có từ trước (Auto-login)
-    val initialDestination = remember {
-        if (prefManager.isLoggedIn()) {
-            val role = prefManager.getUserRole()
-            if (role.equals("ADMIN", ignoreCase = true)) {
-                AppDestination.ADMIN_DASHBOARD
-            } else {
-                AppDestination.EMPLOYEE_DASHBOARD
-            }
-        } else {
-            AppDestination.LOGIN
-        }
-    }
-
-    var currentScreen by remember { mutableStateOf(initialDestination) }
-    var currentSession by remember { mutableStateOf<UserSession?>(prefManager.getSession()) }
-
-    when (currentScreen) {
-        AppDestination.LOGIN -> {
-            LoginScreen(
-                accountDao = accountDao,
-                prefManager = prefManager,
-                onLoginSuccess = { role ->
-                    currentSession = prefManager.getSession()
-                    currentScreen = if (role.equals("ADMIN", ignoreCase = true)) {
-                        AppDestination.ADMIN_DASHBOARD
-                    } else {
-                        AppDestination.EMPLOYEE_DASHBOARD
-                    }
-                }
-            )
-        }
-
-        AppDestination.ADMIN_DASHBOARD -> {
-            AdminDashboardScreen(
-                session = currentSession,
-                onLogout = {
-                    prefManager.clearSession()
-                    currentSession = null
-                    currentScreen = AppDestination.LOGIN
-                }
-            )
-        }
-
-        AppDestination.EMPLOYEE_DASHBOARD -> {
-            EmployeeDashboardScreen(
-                session = currentSession,
-                onLogout = {
-                    prefManager.clearSession()
-                    currentSession = null
-                    currentScreen = AppDestination.LOGIN
-                }
-            )
         }
     }
 }
