@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import com.example.th_app2.data.model.Employee
 
 class DatabaseHelper(context: Context) :
     SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
@@ -187,5 +188,167 @@ class DatabaseHelper(context: Context) :
             put("status", "Pending")
         }
         db.insert(TABLE_SALARY, null, salarySample)
+    }
+
+    // ==========================================================
+    // CÁC HÀM CRUD QUẢN LÝ NHÂN VIÊN (EMPLOYEE MANAGEMENT)
+    // ==========================================================
+
+    /**
+     * Lấy toàn bộ danh sách nhân viên từ CSDL
+     */
+    fun getAllEmployees(): List<Employee> {
+        val list = mutableListOf<Employee>()
+        val db = readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT id, code, fullname, email, phone, hourlyRate, accountId FROM $TABLE_EMPLOYEE ORDER BY id DESC",
+            null
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                list.add(
+                    Employee(
+                        id = it.getInt(0),
+                        code = it.getString(1),
+                        fullname = it.getString(2),
+                        email = if (it.isNull(3)) "" else it.getString(3),
+                        phone = if (it.isNull(4)) "" else it.getString(4),
+                        hourlyRate = it.getDouble(5),
+                        accountId = if (it.isNull(6)) null else it.getInt(6)
+                    )
+                )
+            }
+        }
+        return list
+    }
+
+    /**
+     * Tìm kiếm nhân viên theo Tên hoặc Mã nhân viên
+     */
+    fun searchEmployees(keyword: String): List<Employee> {
+        if (keyword.isBlank()) return getAllEmployees()
+        val list = mutableListOf<Employee>()
+        val db = readableDatabase
+        val queryPattern = "%${keyword.trim()}%"
+        val cursor = db.rawQuery(
+            """
+            SELECT id, code, fullname, email, phone, hourlyRate, accountId 
+            FROM $TABLE_EMPLOYEE 
+            WHERE fullname LIKE ? OR code LIKE ? 
+            ORDER BY id DESC
+            """.trimIndent(),
+            arrayOf(queryPattern, queryPattern)
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                list.add(
+                    Employee(
+                        id = it.getInt(0),
+                        code = it.getString(1),
+                        fullname = it.getString(2),
+                        email = if (it.isNull(3)) "" else it.getString(3),
+                        phone = if (it.isNull(4)) "" else it.getString(4),
+                        hourlyRate = it.getDouble(5),
+                        accountId = if (it.isNull(6)) null else it.getInt(6)
+                    )
+                )
+            }
+        }
+        return list
+    }
+
+    /**
+     * Thêm mới nhân viên đồng thời tự động tạo tài khoản đăng nhập (Account)
+     * Trả về:
+     *  > 0 : Thành công (trả về employeeId)
+     *  -2  : Mã nhân viên đã tồn tại
+     *  -3  : Tên đăng nhập (username) đã tồn tại
+     *  -1  : Lỗi thêm dữ liệu
+     */
+    fun insertEmployeeWithAccount(
+        code: String,
+        fullname: String,
+        email: String,
+        phone: String,
+        hourlyRate: Double,
+        username: String = "",
+        password: String = "123456"
+    ): Long {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            // Kiểm tra mã nhân viên đã tồn tại chưa
+            val checkCursor = db.rawQuery("SELECT id FROM $TABLE_EMPLOYEE WHERE code = ?", arrayOf(code.trim()))
+            val codeExists = checkCursor.moveToFirst()
+            checkCursor.close()
+            if (codeExists) return -2L
+
+            // Tạo tài khoản cho nhân viên
+            val accUsername = if (username.isNotBlank()) username.trim() else code.trim().lowercase()
+            val accValues = ContentValues().apply {
+                put("username", accUsername)
+                put("password", password)
+                put("role", "EMPLOYEE")
+            }
+            val accId = db.insert(TABLE_ACCOUNT, null, accValues)
+            if (accId == -1L) return -3L
+
+            // Tạo hồ sơ nhân viên liên kết với accountId
+            val empValues = ContentValues().apply {
+                put("code", code.trim())
+                put("fullname", fullname.trim())
+                put("email", email.trim())
+                put("phone", phone.trim())
+                put("hourlyRate", hourlyRate)
+                put("accountId", accId)
+            }
+            val empId = db.insert(TABLE_EMPLOYEE, null, empValues)
+            if (empId != -1L) {
+                db.setTransactionSuccessful()
+            }
+            return empId
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /**
+     * Cập nhật thông tin nhân viên và mức lương theo giờ
+     */
+    fun updateEmployee(
+        id: Int,
+        fullname: String,
+        email: String,
+        phone: String,
+        hourlyRate: Double
+    ): Boolean {
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            put("fullname", fullname.trim())
+            put("email", email.trim())
+            put("phone", phone.trim())
+            put("hourlyRate", hourlyRate)
+        }
+        val rowsAffected = db.update(TABLE_EMPLOYEE, values, "id = ?", arrayOf(id.toString()))
+        return rowsAffected > 0
+    }
+
+    /**
+     * Xóa nhân viên theo ID
+     */
+    fun deleteEmployee(id: Int): Boolean {
+        val db = writableDatabase
+        var accountId: Int? = null
+        val cursor = db.rawQuery("SELECT accountId FROM $TABLE_EMPLOYEE WHERE id = ?", arrayOf(id.toString()))
+        if (cursor.moveToFirst() && !cursor.isNull(0)) {
+            accountId = cursor.getInt(0)
+        }
+        cursor.close()
+
+        val rowsAffected = db.delete(TABLE_EMPLOYEE, "id = ?", arrayOf(id.toString()))
+        if (accountId != null) {
+            db.delete(TABLE_ACCOUNT, "id = ?", arrayOf(accountId.toString()))
+        }
+        return rowsAffected > 0
     }
 }

@@ -1,5 +1,6 @@
 package com.example.th_app2.ui.admin.employee
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,70 +10,59 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.th_app2.data.db.DatabaseHelper
+import com.example.th_app2.data.model.Employee
 import java.text.DecimalFormat
 
 /**
- * Model tạm thời hiển thị trên UI Quản lý Nhân viên
- * (Dễ dàng map với Model Employee từ Database của Thành viên 1)
- */
-data class EmployeeUiItem(
-    val id: Int = 0,
-    val code: String = "",
-    val fullname: String = "",
-    val email: String = "",
-    val phone: String = "",
-    val hourlyRate: Double = 0.0
-)
-
-/**
- * GIAO DIỆN QUẢN LÝ NHÂN VIÊN (BƯỚC 2)
- * Bao gồm:
- * 1. Thanh tìm kiếm thời gian thực (Search Bar)
- * 2. Danh sách nhân viên dạng thẻ Card (Mã NV, Tên, Email, SĐT, Lương/giờ)
- * 3. Nút nổi FloatingActionButton (+) Thêm mới nhân viên
- * 4. Hộp thoại Dialog Thêm / Sửa nhân viên (kèm validation)
- * 5. Hộp thoại Dialog Xác nhận Xóa nhân viên
+ * GIAO DIỆN QUẢN LÝ NHÂN VIÊN KẾT NỐI DATABASE THỰC TẾ
+ * Chức năng:
+ * 1. Hiển thị danh sách nhân viên từ CSDL SQLite
+ * 2. Tìm kiếm nhân viên thời gian thực theo Tên hoặc Mã
+ * 3. Thêm nhân viên mới (tự tạo tài khoản đăng nhập tương ứng)
+ * 4. Cập nhật thông tin nhân viên và mức lương theo giờ
+ * 5. Xóa nhân viên khỏi CSDL (kèm dialog xác nhận)
  */
 @Composable
 fun EmployeeManagementScreen(
     modifier: Modifier = Modifier
 ) {
-    // Danh sách nhân viên mẫu ban đầu để demo và kiểm tra giao diện
-    var employeeList by remember {
-        mutableStateOf(
-            listOf(
-                EmployeeUiItem(1, "NV001", "Trần Duy Anh", "duyanh@gmail.com", "0912345678", 60000.0),
-                EmployeeUiItem(2, "NV002", "Nguyễn Văn Nam", "nam@gmail.com", "0987654321", 50000.0),
-                EmployeeUiItem(3, "NV003", "Lê Thị Hoa", "hoa@gmail.com", "0901234567", 75000.0)
-            )
-        )
-    }
+    val context = LocalContext.current
+    val dbHelper = remember { DatabaseHelper(context) }
 
+    var employeeList by remember { mutableStateOf<List<Employee>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
-    
+
     // Quản lý trạng thái Dialog Thêm / Sửa
     var showAddEditDialog by remember { mutableStateOf(false) }
-    var selectedEmployeeForEdit by remember { mutableStateOf<EmployeeUiItem?>(null) }
+    var selectedEmployeeForEdit by remember { mutableStateOf<Employee?>(null) }
 
     // Quản lý trạng thái Dialog Xóa
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var selectedEmployeeForDelete by remember { mutableStateOf<EmployeeUiItem?>(null) }
+    var selectedEmployeeForDelete by remember { mutableStateOf<Employee?>(null) }
 
-    // Lọc danh sách theo từ khóa tìm kiếm (Mã NV hoặc Tên NV)
-    val filteredList = remember(searchQuery, employeeList) {
-        if (searchQuery.isBlank()) {
-            employeeList
+    // Hàm tải lại dữ liệu từ Database
+    fun reloadEmployees() {
+        employeeList = if (searchQuery.isBlank()) {
+            dbHelper.getAllEmployees()
         } else {
-            employeeList.filter {
-                it.fullname.contains(searchQuery, ignoreCase = true) ||
-                it.code.contains(searchQuery, ignoreCase = true)
-            }
+            dbHelper.searchEmployees(searchQuery)
         }
+    }
+
+    // Tự động load dữ liệu ban đầu
+    LaunchedEffect(Unit) {
+        reloadEmployees()
+    }
+
+    // Khi người dùng gõ từ khóa tìm kiếm
+    LaunchedEffect(searchQuery) {
+        reloadEmployees()
     }
 
     Scaffold(
@@ -117,15 +107,15 @@ fun EmployeeManagementScreen(
 
             // Tiêu đề số lượng nhân viên
             Text(
-                text = "Tổng số nhân viên: ${filteredList.size}",
+                text = "Tổng số nhân viên: ${employeeList.size}",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 2. DANH SÁCH NHÂN VIÊN
-            if (filteredList.isEmpty()) {
+            // 2. DANH SÁCH NHÂN VIÊN TỪ CSDL
+            if (employeeList.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -133,7 +123,7 @@ fun EmployeeManagementScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (searchQuery.isBlank()) "Chưa có nhân viên nào." else "Không tìm thấy nhân viên phù hợp.",
+                        text = if (searchQuery.isBlank()) "Chưa có nhân viên nào trong CSDL." else "Không tìm thấy nhân viên phù hợp.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -141,9 +131,9 @@ fun EmployeeManagementScreen(
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 72.dp) // Tránh che khuất bởi FAB
+                    contentPadding = PaddingValues(bottom = 72.dp)
                 ) {
-                    items(filteredList, key = { it.id }) { employee ->
+                    items(employeeList, key = { it.id }) { employee ->
                         EmployeeCard(
                             employee = employee,
                             onEdit = {
@@ -166,19 +156,43 @@ fun EmployeeManagementScreen(
         EmployeeFormDialog(
             employee = selectedEmployeeForEdit,
             onDismiss = { showAddEditDialog = false },
-            onSave = { updatedOrNewEmp ->
+            onSave = { code, fullname, email, phone, rate ->
                 if (selectedEmployeeForEdit == null) {
-                    // Thêm mới
-                    employeeList = employeeList + updatedOrNewEmp.copy(
-                        id = (employeeList.maxOfOrNull { it.id } ?: 0) + 1
+                    // Thêm mới vào SQLite
+                    val result = dbHelper.insertEmployeeWithAccount(
+                        code = code,
+                        fullname = fullname,
+                        email = email,
+                        phone = phone,
+                        hourlyRate = rate
                     )
+                    when (result) {
+                        -2L -> Toast.makeText(context, "Lỗi: Mã nhân viên \"$code\" đã tồn tại!", Toast.LENGTH_SHORT).show()
+                        -3L -> Toast.makeText(context, "Lỗi: Tên đăng nhập đã tồn tại!", Toast.LENGTH_SHORT).show()
+                        -1L -> Toast.makeText(context, "Lỗi: Không thể thêm nhân viên!", Toast.LENGTH_SHORT).show()
+                        else -> {
+                            Toast.makeText(context, "Thêm nhân viên thành công!", Toast.LENGTH_SHORT).show()
+                            showAddEditDialog = false
+                            reloadEmployees()
+                        }
+                    }
                 } else {
-                    // Cập nhật
-                    employeeList = employeeList.map {
-                        if (it.id == updatedOrNewEmp.id) updatedOrNewEmp else it
+                    // Cập nhật thông tin vào SQLite
+                    val success = dbHelper.updateEmployee(
+                        id = selectedEmployeeForEdit!!.id,
+                        fullname = fullname,
+                        email = email,
+                        phone = phone,
+                        hourlyRate = rate
+                    )
+                    if (success) {
+                        Toast.makeText(context, "Cập nhật nhân viên thành công!", Toast.LENGTH_SHORT).show()
+                        showAddEditDialog = false
+                        reloadEmployees()
+                    } else {
+                        Toast.makeText(context, "Lỗi: Cập nhật thất bại!", Toast.LENGTH_SHORT).show()
                     }
                 }
-                showAddEditDialog = false
             }
         )
     }
@@ -189,13 +203,19 @@ fun EmployeeManagementScreen(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Xác nhận xóa") },
             text = {
-                Text("Bạn có chắc chắn muốn xóa nhân viên \"${selectedEmployeeForDelete?.fullname}\" (${selectedEmployeeForDelete?.code})?")
+                Text("Bạn có chắc chắn muốn xóa nhân viên \"${selectedEmployeeForDelete?.fullname}\" (Mã: ${selectedEmployeeForDelete?.code})?")
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        employeeList = employeeList.filter { it.id != selectedEmployeeForDelete?.id }
-                        showDeleteDialog = false
+                        val success = dbHelper.deleteEmployee(selectedEmployeeForDelete!!.id)
+                        if (success) {
+                            Toast.makeText(context, "Đã xóa nhân viên thành công!", Toast.LENGTH_SHORT).show()
+                            showDeleteDialog = false
+                            reloadEmployees()
+                        } else {
+                            Toast.makeText(context, "Lỗi: Xóa nhân viên thất bại!", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
@@ -216,7 +236,7 @@ fun EmployeeManagementScreen(
  */
 @Composable
 fun EmployeeCard(
-    employee: EmployeeUiItem,
+    employee: Employee,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -289,12 +309,12 @@ fun EmployeeCard(
 
             // Hàng 3: Email và SĐT
             Text(
-                text = "✉️ ${employee.email}",
+                text = "✉️ ${employee.email ?: "Chưa có email"}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "📞 ${employee.phone}",
+                text = "📞 ${employee.phone ?: "Chưa có SĐT"}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -329,9 +349,9 @@ fun EmployeeCard(
  */
 @Composable
 fun EmployeeFormDialog(
-    employee: EmployeeUiItem?,
+    employee: Employee?,
     onDismiss: () -> Unit,
-    onSave: (EmployeeUiItem) -> Unit
+    onSave: (code: String, fullname: String, email: String, phone: String, hourlyRate: Double) -> Unit
 ) {
     val isEditMode = employee != null
 
@@ -367,7 +387,7 @@ fun EmployeeFormDialog(
                 OutlinedTextField(
                     value = code,
                     onValueChange = { code = it },
-                    label = { Text("Mã nhân viên (vd: NV001)") },
+                    label = { Text("Mã nhân viên (vd: NV003)") },
                     enabled = !isEditMode, // Không cho sửa mã khi edit
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -424,16 +444,7 @@ fun EmployeeFormDialog(
                         phone.isBlank() -> errorMessage = "Số điện thoại không được để trống"
                         rate == null || rate <= 0 -> errorMessage = "Mức lương phải là số lớn hơn 0"
                         else -> {
-                            onSave(
-                                EmployeeUiItem(
-                                    id = employee?.id ?: 0,
-                                    code = code.trim(),
-                                    fullname = fullname.trim(),
-                                    email = email.trim(),
-                                    phone = phone.trim(),
-                                    hourlyRate = rate
-                                )
-                            )
+                            onSave(code.trim(), fullname.trim(), email.trim(), phone.trim(), rate)
                         }
                     }
                 }
