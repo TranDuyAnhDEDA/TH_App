@@ -4,6 +4,12 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import com.example.th_app2.data.model.Employee
+import com.example.th_app2.data.model.Salary
+import com.example.th_app2.data.model.WorkLog
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 class DatabaseHelper(context: Context) :
     SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
@@ -187,5 +193,135 @@ class DatabaseHelper(context: Context) :
             put("status", "Pending")
         }
         db.insert(TABLE_SALARY, null, salarySample)
+    }
+
+    // ===== 6 HÀM CONTRACT INTERFACE (Member 3) =====
+
+    private fun today(): String =
+        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Calendar.getInstance().time)
+
+    private fun nowTime(): String =
+        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Calendar.getInstance().time)
+
+    fun getTodayWorkLog(employeeId: Int): WorkLog? {
+        val db = readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT * FROM $TABLE_WORKLOG WHERE employeeId = ? AND workDate = ?",
+            arrayOf(employeeId.toString(), today())
+        )
+        var workLog: WorkLog? = null
+        if (cursor.moveToFirst()) {
+            workLog = WorkLog(
+                id = cursor.getInt(cursor.getColumnIndexOrThrow("id")),
+                employeeId = cursor.getInt(cursor.getColumnIndexOrThrow("employeeId")),
+                workDate = cursor.getString(cursor.getColumnIndexOrThrow("workDate")),
+                checkInTime = cursor.getString(cursor.getColumnIndexOrThrow("checkInTime")),
+                checkOutTime = cursor.getString(cursor.getColumnIndexOrThrow("checkOutTime")),
+                totalHours = cursor.getDouble(cursor.getColumnIndexOrThrow("totalHours")),
+                status = cursor.getString(cursor.getColumnIndexOrThrow("status"))
+            )
+        }
+        cursor.close()
+        return workLog
+    }
+
+    fun doCheckIn(employeeId: Int): Boolean {
+        if (getTodayWorkLog(employeeId) != null) return false
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            put("employeeId", employeeId)
+            put("workDate", today())
+            put("checkInTime", nowTime())
+            put("totalHours", 0.0)
+            put("status", "In Progress")
+        }
+        return db.insert(TABLE_WORKLOG, null, values) != -1L
+    }
+
+    fun doCheckOut(employeeId: Int): Boolean {
+        val log = getTodayWorkLog(employeeId) ?: return false
+        if (log.status == "Completed") return false
+        val outTime = nowTime()
+        val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+        val inParsed = sdf.parse(log.checkInTime) ?: return false
+        val outParsed = sdf.parse(outTime) ?: return false
+        val totalH = (outParsed.time - inParsed.time) / (1000.0 * 60 * 60)
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            put("checkOutTime", outTime)
+            put("totalHours", totalH)
+            put("status", "Completed")
+        }
+        return db.update(TABLE_WORKLOG, values, "id = ?", arrayOf(log.id.toString())) > 0
+    }
+
+    fun getWorkLogsByEmployee(employeeId: Int, month: Int, year: Int): List<WorkLog> {
+        val db = readableDatabase
+        val monthStr = String.format("%04d-%02d", year, month)
+        val cursor = db.rawQuery(
+            "SELECT * FROM $TABLE_WORKLOG WHERE employeeId = ? AND workDate LIKE ? ORDER BY workDate DESC",
+            arrayOf(employeeId.toString(), "$monthStr%")
+        )
+        val list = mutableListOf<WorkLog>()
+        while (cursor.moveToNext()) {
+            list.add(
+                WorkLog(
+                    id = cursor.getInt(cursor.getColumnIndexOrThrow("id")),
+                    employeeId = cursor.getInt(cursor.getColumnIndexOrThrow("employeeId")),
+                    workDate = cursor.getString(cursor.getColumnIndexOrThrow("workDate")),
+                    checkInTime = cursor.getString(cursor.getColumnIndexOrThrow("checkInTime")),
+                    checkOutTime = cursor.getString(cursor.getColumnIndexOrThrow("checkOutTime")),
+                    totalHours = cursor.getDouble(cursor.getColumnIndexOrThrow("totalHours")),
+                    status = cursor.getString(cursor.getColumnIndexOrThrow("status"))
+                )
+            )
+        }
+        cursor.close()
+        return list
+    }
+
+    fun getSalaryByEmployee(employeeId: Int, month: Int, year: Int): Salary? {
+        val db = readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT * FROM $TABLE_SALARY WHERE employeeId = ? AND month = ? AND year = ?",
+            arrayOf(employeeId.toString(), month.toString(), year.toString())
+        )
+        var salary: Salary? = null
+        if (cursor.moveToFirst()) {
+            salary = Salary(
+                id = cursor.getInt(cursor.getColumnIndexOrThrow("id")),
+                employeeId = cursor.getInt(cursor.getColumnIndexOrThrow("employeeId")),
+                month = cursor.getInt(cursor.getColumnIndexOrThrow("month")),
+                year = cursor.getInt(cursor.getColumnIndexOrThrow("year")),
+                totalHours = cursor.getDouble(cursor.getColumnIndexOrThrow("totalHours")),
+                overtimeHours = cursor.getDouble(cursor.getColumnIndexOrThrow("overtimeHours")),
+                totalSalary = cursor.getDouble(cursor.getColumnIndexOrThrow("totalSalary")),
+                status = cursor.getString(cursor.getColumnIndexOrThrow("status"))
+            )
+        }
+        cursor.close()
+        return salary
+    }
+
+    fun getEmployeeByAccountId(accountId: Int): Employee? {
+        val db = readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT * FROM $TABLE_EMPLOYEE WHERE accountId = ?",
+            arrayOf(accountId.toString())
+        )
+        var employee: Employee? = null
+        if (cursor.moveToFirst()) {
+            employee = Employee(
+                id = cursor.getInt(cursor.getColumnIndexOrThrow("id")),
+                code = cursor.getString(cursor.getColumnIndexOrThrow("code")),
+                fullname = cursor.getString(cursor.getColumnIndexOrThrow("fullname")),
+                email = cursor.getString(cursor.getColumnIndexOrThrow("email")),
+                phone = cursor.getString(cursor.getColumnIndexOrThrow("phone")),
+                hourlyRate = cursor.getDouble(cursor.getColumnIndexOrThrow("hourlyRate")),
+                accountId = cursor.getInt(cursor.getColumnIndexOrThrow("accountId"))
+            )
+        }
+        cursor.close()
+        return employee
     }
 }
