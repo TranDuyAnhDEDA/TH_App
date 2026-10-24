@@ -1,44 +1,54 @@
 package com.example.th_app2.ui.admin
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.th_app2.data.model.UserSession
-import com.example.th_app2.ui.components.AppHeader
+import androidx.compose.ui.tooling.preview.Preview
+import com.example.th_app2.ui.admin.employee.EmployeeManagementScreen
+import com.example.th_app2.ui.admin.salary.SalaryManagementScreen
 
+/**
+ * BƯỚC 1: Khung Admin Dashboard chính
+ * - TopAppBar: Tiêu đề và nút Đăng xuất (Logout)
+ * - PrimaryTabRow: Chuyển đổi giữa 2 tab "Nhân viên" và "Bảng lương"
+ * - Content: Hiển thị màn hình tương ứng với tab được chọn
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminDashboardScreen(
-    session: UserSession?,
-    onLogout: () -> Unit
+    onLogout: () -> Unit = {}
 ) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabTitles = listOf("👤 Quản lý Nhân viên", "💰 Quản lý Bảng lương")
+
     Scaffold(
         topBar = {
-            AppHeader(
-                title = "Quản trị viên (Admin)",
-                session = session,
-                onLogout = onLogout
+            TopAppBar(
+                title = { 
+                    Text(
+                        text = "Quản Trị Hệ Thống",
+                        style = MaterialTheme.typography.titleLarge
+                    ) 
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
+                actions = {
+                    TextButton(onClick = onLogout) {
+                        Text(
+                            text = "Đăng xuất",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
             )
         }
     ) { innerPadding ->
@@ -46,68 +56,28 @@ fun AdminDashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "BẢNG ĐIỀU KHIỂN HỆ THỐNG",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            // Khung chức năng 1: Quản lý nhân viên (Dành cho Thành viên 2)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.People,
-                        contentDescription = "Employee Management",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "1. Quản lý Nhân sự (Thành viên 2)",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Thêm, Sửa, Xóa, Tìm kiếm nhân viên và quản lý mức lương theo giờ (T2.1 - T2.4).",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            // Thanh chuyển đổi Tab
+            PrimaryTabRow(selectedTabIndex = selectedTab) {
+                tabTitles.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = { 
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.titleSmall
+                            ) 
+                        }
                     )
                 }
             }
 
-            // Khung chức năng 2: Tính lương toàn công ty (Dành cho Thành viên 2)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.AttachMoney,
-                        contentDescription = "Salary Management",
-                        tint = MaterialTheme.colorScheme.secondary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "2. Quản lý & Tính Lương (Thành viên 2)",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Kích hoạt tính lương tháng, tính Overtime và duyệt bảng lương công ty (T2.5).",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            when (selectedTab) {
+                0 -> EmployeeManagementScreen(modifier = Modifier.fillMaxSize())
+                1 -> SalaryManagementScreen(modifier = Modifier.fillMaxSize())
             }
         }
     }
 }
+

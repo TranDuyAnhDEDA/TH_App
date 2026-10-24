@@ -8,18 +8,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,6 +27,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.th_app2.data.model.UserSession
 
+private val HeaderBg = Color(0xFF1E293B)      // Màu xanh đen thanh Header trong ảnh
+private val TextWhite = Color(0xFFF8FAFC)
+private val TextMuted = Color(0xFF94A3B8)
+private val BadgeBlue = Color(0xFF1D4ED8)
+
 @Composable
 fun AppHeader(
     title: String,
@@ -45,87 +41,62 @@ fun AppHeader(
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    Card(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(12.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .background(HeaderBg)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextWhite
+            )
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.padding(top = 2.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.AccountCircle,
-                    contentDescription = "User Avatar",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(44.dp)
+                Text(
+                    text = session?.employeeName?.ifEmpty { session.username } ?: "Người dùng",
+                    fontSize = 12.sp,
+                    color = TextMuted
                 )
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
-                Column {
+                val roleText = if (session?.role == "ADMIN") "ADMIN" else (session?.employeeCode?.ifEmpty { "EMPLOYEE" } ?: "EMPLOYEE")
+                val badgeColor = if (session?.role == "ADMIN") Color(0xFFEF4444) else BadgeBlue
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(badgeColor)
+                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                ) {
                     Text(
-                        text = title,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        text = roleText,
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
                     )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(top = 2.dp)
-                    ) {
-                        Text(
-                            text = session?.employeeName?.ifEmpty { session.username } ?: "Người dùng",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Role Badge
-                        val roleText = if (session?.role == "ADMIN") "ADMIN" else "NV: ${session?.employeeCode}"
-                        val badgeColor = if (session?.role == "ADMIN") Color(0xFFD32F2F) else Color(0xFF1976D2)
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(badgeColor)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = roleText,
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                 }
             }
+        }
 
-            // Nút Logout
-            IconButton(onClick = { showLogoutDialog = true }) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Logout,
-                    contentDescription = "Đăng xuất",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(26.dp)
-                )
-            }
+        // Nút Đăng xuất dạng chữ ở góc phải giống hệt trong ảnh
+        TextButton(
+            onClick = { showLogoutDialog = true }
+        ) {
+            Text(
+                text = "Đăng xuất",
+                color = TextWhite,
+                fontSize = 14.sp
+            )
         }
     }
 
@@ -142,7 +113,7 @@ fun AppHeader(
                         onLogout()
                     }
                 ) {
-                    Text(text = "Đăng xuất", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    Text(text = "Đăng xuất", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

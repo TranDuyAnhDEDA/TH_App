@@ -193,7 +193,7 @@ class DatabaseHelper(context: Context) :
         db.insert(TABLE_SALARY, null, salarySample)
     }
 
-    // ===== 6 HÀM CONTRACT INTERFACE =====
+    // ===== 6 HÀM CONTRACT INTERFACE (Thành viên 3) =====
 
     private fun today(): String = TimeSalaryHelper.getCurrentDate()
 
@@ -317,4 +317,262 @@ class DatabaseHelper(context: Context) :
         cursor.close()
         return employee
     }
+
+    // ===== CRUD QUẢN LÝ NHÂN VIÊN (Thành viên 2) =====
+
+    fun getAllEmployees(): List<Employee> {
+        val list = mutableListOf<Employee>()
+        val db = readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT id, code, fullname, email, phone, hourlyRate, accountId FROM $TABLE_EMPLOYEE ORDER BY id DESC",
+            null
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                list.add(
+                    Employee(
+                        id = it.getInt(0),
+                        code = it.getString(1),
+                        fullname = it.getString(2),
+                        email = if (it.isNull(3)) "" else it.getString(3),
+                        phone = if (it.isNull(4)) "" else it.getString(4),
+                        hourlyRate = it.getDouble(5),
+                        accountId = if (it.isNull(6)) null else it.getInt(6)
+                    )
+                )
+            }
+        }
+        return list
+    }
+
+    fun searchEmployees(keyword: String): List<Employee> {
+        if (keyword.isBlank()) return getAllEmployees()
+        val list = mutableListOf<Employee>()
+        val db = readableDatabase
+        val queryPattern = "%${keyword.trim()}%"
+        val cursor = db.rawQuery(
+            """
+            SELECT id, code, fullname, email, phone, hourlyRate, accountId
+            FROM $TABLE_EMPLOYEE
+            WHERE fullname LIKE ? OR code LIKE ?
+            ORDER BY id DESC
+            """.trimIndent(),
+            arrayOf(queryPattern, queryPattern)
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                list.add(
+                    Employee(
+                        id = it.getInt(0),
+                        code = it.getString(1),
+                        fullname = it.getString(2),
+                        email = if (it.isNull(3)) "" else it.getString(3),
+                        phone = if (it.isNull(4)) "" else it.getString(4),
+                        hourlyRate = it.getDouble(5),
+                        accountId = if (it.isNull(6)) null else it.getInt(6)
+                    )
+                )
+            }
+        }
+        return list
+    }
+
+    fun insertEmployeeWithAccount(
+        code: String,
+        fullname: String,
+        email: String,
+        phone: String,
+        hourlyRate: Double,
+        username: String = "",
+        password: String = "123456"
+    ): Long {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val checkCursor = db.rawQuery("SELECT id FROM $TABLE_EMPLOYEE WHERE code = ?", arrayOf(code.trim()))
+            val codeExists = checkCursor.moveToFirst()
+            checkCursor.close()
+            if (codeExists) return -2L
+
+            val accUsername = if (username.isNotBlank()) username.trim() else code.trim().lowercase()
+            val accValues = ContentValues().apply {
+                put("username", accUsername)
+                put("password", password)
+                put("role", "EMPLOYEE")
+            }
+            val accId = db.insert(TABLE_ACCOUNT, null, accValues)
+            if (accId == -1L) return -3L
+
+            val empValues = ContentValues().apply {
+                put("code", code.trim())
+                put("fullname", fullname.trim())
+                put("email", email.trim())
+                put("phone", phone.trim())
+                put("hourlyRate", hourlyRate)
+                put("accountId", accId)
+            }
+            val empId = db.insert(TABLE_EMPLOYEE, null, empValues)
+            if (empId != -1L) {
+                db.setTransactionSuccessful()
+            }
+            return empId
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun updateEmployee(
+        id: Int,
+        fullname: String,
+        email: String,
+        phone: String,
+        hourlyRate: Double
+    ): Boolean {
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            put("fullname", fullname.trim())
+            put("email", email.trim())
+            put("phone", phone.trim())
+            put("hourlyRate", hourlyRate)
+        }
+        val rowsAffected = db.update(TABLE_EMPLOYEE, values, "id = ?", arrayOf(id.toString()))
+        return rowsAffected > 0
+    }
+
+    fun deleteEmployee(id: Int): Boolean {
+        val db = writableDatabase
+        var accountId: Int? = null
+        val cursor = db.rawQuery("SELECT accountId FROM $TABLE_EMPLOYEE WHERE id = ?", arrayOf(id.toString()))
+        if (cursor.moveToFirst() && !cursor.isNull(0)) {
+            accountId = cursor.getInt(0)
+        }
+        cursor.close()
+
+        val rowsAffected = db.delete(TABLE_EMPLOYEE, "id = ?", arrayOf(id.toString()))
+        if (accountId != null) {
+            db.delete(TABLE_ACCOUNT, "id = ?", arrayOf(accountId.toString()))
+        }
+        return rowsAffected > 0
+    }
+
+    // ===== QUẢN LÝ VÀ TÍNH LƯƠNG (Thành viên 2) =====
+
+    fun getMonthlySalaries(month: Int, year: Int): List<SalaryReportItem> {
+        val list = mutableListOf<SalaryReportItem>()
+        val db = readableDatabase
+        val cursor = db.rawQuery(
+            """
+            SELECT e.id, e.code, e.fullname, e.hourlyRate,
+                   COALESCE(s.totalHours, 0.0),
+                   COALESCE(s.overtimeHours, 0.0),
+                   COALESCE(s.totalSalary, 0.0),
+                   COALESCE(s.status, 'Chưa tính')
+            FROM $TABLE_EMPLOYEE e
+            LEFT JOIN $TABLE_SALARY s ON e.id = s.employeeId AND s.month = ? AND s.year = ?
+            ORDER BY e.id DESC
+            """.trimIndent(),
+            arrayOf(month.toString(), year.toString())
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                val totalH = it.getDouble(4)
+                val otH = it.getDouble(5)
+                val regH = if (totalH >= otH) totalH - otH else totalH
+                list.add(
+                    SalaryReportItem(
+                        employeeId = it.getInt(0),
+                        employeeCode = it.getString(1),
+                        employeeName = it.getString(2),
+                        hourlyRate = it.getDouble(3),
+                        totalHours = totalH,
+                        overtimeHours = otH,
+                        regularHours = regH,
+                        totalSalary = it.getDouble(6),
+                        status = it.getString(7)
+                    )
+                )
+            }
+        }
+        return list
+    }
+
+    fun calculateMonthlySalaries(month: Int, year: Int): Int {
+        val employees = getAllEmployees()
+        val db = writableDatabase
+        val monthStr = if (month < 10) "0$month" else "$month"
+        val datePrefix = "$year-$monthStr-%"
+        var calculatedCount = 0
+
+        db.beginTransaction()
+        try {
+            for (emp in employees) {
+                val logCursor = db.rawQuery(
+                    "SELECT totalHours FROM $TABLE_WORKLOG WHERE employeeId = ? AND workDate LIKE ?",
+                    arrayOf(emp.id.toString(), datePrefix)
+                )
+                var totalRegularHours = 0.0
+                var totalOtHours = 0.0
+
+                logCursor.use {
+                    while (it.moveToNext()) {
+                        val hours = it.getDouble(0)
+                        if (hours <= 8.0) {
+                            totalRegularHours += hours
+                        } else {
+                            totalRegularHours += 8.0
+                            totalOtHours += (hours - 8.0)
+                        }
+                    }
+                }
+
+                val totalHours = totalRegularHours + totalOtHours
+                val salaryAmount = (totalRegularHours * emp.hourlyRate) + (totalOtHours * emp.hourlyRate * 1.5)
+
+                val checkCursor = db.rawQuery(
+                    "SELECT id FROM $TABLE_SALARY WHERE employeeId = ? AND month = ? AND year = ?",
+                    arrayOf(emp.id.toString(), month.toString(), year.toString())
+                )
+                val exists = checkCursor.moveToFirst()
+                checkCursor.close()
+
+                val values = ContentValues().apply {
+                    put("employeeId", emp.id)
+                    put("month", month)
+                    put("year", year)
+                    put("totalHours", totalHours)
+                    put("overtimeHours", totalOtHours)
+                    put("totalSalary", salaryAmount)
+                    put("status", "Đã tính")
+                }
+
+                if (exists) {
+                    db.update(
+                        TABLE_SALARY,
+                        values,
+                        "employeeId = ? AND month = ? AND year = ?",
+                        arrayOf(emp.id.toString(), month.toString(), year.toString())
+                    )
+                } else {
+                    db.insert(TABLE_SALARY, null, values)
+                }
+                calculatedCount++
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return calculatedCount
+    }
 }
+
+data class SalaryReportItem(
+    val employeeId: Int,
+    val employeeCode: String,
+    val employeeName: String,
+    val hourlyRate: Double,
+    val totalHours: Double,
+    val overtimeHours: Double,
+    val regularHours: Double,
+    val totalSalary: Double,
+    val status: String
+)

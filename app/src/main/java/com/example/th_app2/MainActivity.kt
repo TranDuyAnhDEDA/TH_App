@@ -66,7 +66,6 @@ fun AppRootNavigation(
     accountDao: AccountDao,
     prefManager: PrefManager
 ) {
-    // Tự động kiểm tra phiên đăng nhập đã có từ trước (Auto-login)
     val initialDestination = remember {
         if (prefManager.isLoggedIn()) {
             val role = prefManager.getUserRole()
@@ -101,7 +100,6 @@ fun AppRootNavigation(
 
         AppDestination.ADMIN_DASHBOARD -> {
             AdminDashboardScreen(
-                session = currentSession,
                 onLogout = {
                     prefManager.clearSession()
                     currentSession = null
