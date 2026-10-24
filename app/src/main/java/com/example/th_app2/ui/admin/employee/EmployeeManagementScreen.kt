@@ -19,15 +19,6 @@ import com.example.th_app2.data.db.DatabaseHelper
 import com.example.th_app2.data.model.Employee
 import java.text.DecimalFormat
 
-/**
- * GIAO DIỆN QUẢN LÝ NHÂN VIÊN KẾT NỐI DATABASE THỰC TẾ
- * Chức năng:
- * 1. Hiển thị danh sách nhân viên từ CSDL SQLite
- * 2. Tìm kiếm nhân viên thời gian thực theo Tên hoặc Mã
- * 3. Thêm nhân viên mới (tự tạo tài khoản đăng nhập tương ứng)
- * 4. Cập nhật thông tin nhân viên và mức lương theo giờ
- * 5. Xóa nhân viên khỏi CSDL (kèm dialog xác nhận)
- */
 @Composable
 fun EmployeeManagementScreen(
     modifier: Modifier = Modifier
@@ -38,15 +29,13 @@ fun EmployeeManagementScreen(
     var employeeList by remember { mutableStateOf<List<Employee>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // Quản lý trạng thái Dialog Thêm / Sửa
     var showAddEditDialog by remember { mutableStateOf(false) }
     var selectedEmployeeForEdit by remember { mutableStateOf<Employee?>(null) }
 
-    // Quản lý trạng thái Dialog Xóa
     var showDeleteDialog by remember { mutableStateOf(false) }
     var selectedEmployeeForDelete by remember { mutableStateOf<Employee?>(null) }
 
-    // Hàm tải lại dữ liệu từ Database
+    // Tải danh sách nhân viên từ DB
     fun reloadEmployees() {
         employeeList = if (searchQuery.isBlank()) {
             dbHelper.getAllEmployees()
@@ -55,21 +44,22 @@ fun EmployeeManagementScreen(
         }
     }
 
-    // Tự động load dữ liệu ban đầu
+    // Load dữ liệu ban đầu
     LaunchedEffect(Unit) {
         reloadEmployees()
     }
 
-    // Khi người dùng gõ từ khóa tìm kiếm
+    // Lọc dữ liệu khi gõ tìm kiếm
     LaunchedEffect(searchQuery) {
         reloadEmployees()
     }
 
     Scaffold(
         floatingActionButton = {
+            // Nút thêm nhân viên
             ExtendedFloatingActionButton(
                 onClick = {
-                    selectedEmployeeForEdit = null // Chế độ Thêm mới
+                    selectedEmployeeForEdit = null
                     showAddEditDialog = true
                 },
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -85,7 +75,7 @@ fun EmployeeManagementScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            // 1. THANH TÌM KIẾM
+            // Ô tìm kiếm
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -105,7 +95,7 @@ fun EmployeeManagementScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Tiêu đề số lượng nhân viên
+            // Đếm số lượng
             Text(
                 text = "Tổng số nhân viên: ${employeeList.size}",
                 style = MaterialTheme.typography.labelLarge,
@@ -114,7 +104,7 @@ fun EmployeeManagementScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 2. DANH SÁCH NHÂN VIÊN TỪ CSDL
+            // Danh sách nhân viên
             if (employeeList.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -151,14 +141,14 @@ fun EmployeeManagementScreen(
         }
     }
 
-    // 3. DIALOG THÊM / SỬA NHÂN VIÊN
+    // Dialog thêm hoặc sửa
     if (showAddEditDialog) {
         EmployeeFormDialog(
             employee = selectedEmployeeForEdit,
             onDismiss = { showAddEditDialog = false },
             onSave = { code, fullname, email, phone, rate ->
                 if (selectedEmployeeForEdit == null) {
-                    // Thêm mới vào SQLite
+                    // Thêm nhân viên
                     val result = dbHelper.insertEmployeeWithAccount(
                         code = code,
                         fullname = fullname,
@@ -177,7 +167,7 @@ fun EmployeeManagementScreen(
                         }
                     }
                 } else {
-                    // Cập nhật thông tin vào SQLite
+                    // Cập nhật nhân viên
                     val success = dbHelper.updateEmployee(
                         id = selectedEmployeeForEdit!!.id,
                         fullname = fullname,
@@ -197,7 +187,7 @@ fun EmployeeManagementScreen(
         )
     }
 
-    // 4. DIALOG XÁC NHẬN XÓA
+    // Dialog xác nhận xóa
     if (showDeleteDialog && selectedEmployeeForDelete != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -231,9 +221,7 @@ fun EmployeeManagementScreen(
     }
 }
 
-/**
- * Thẻ hiển thị thông tin từng nhân viên
- */
+// Thẻ hiển thị từng nhân viên
 @Composable
 fun EmployeeCard(
     employee: Employee,
@@ -254,7 +242,7 @@ fun EmployeeCard(
                 .fillMaxWidth()
                 .padding(14.dp)
         ) {
-            // Hàng 1: Mã NV + Các nút hành động (Sửa, Xóa)
+            // Mã NV và các nút hành động
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -274,7 +262,7 @@ fun EmployeeCard(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Nút Sửa
+                // Nút sửa
                 FilledTonalButton(
                     onClick = onEdit,
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
@@ -285,7 +273,7 @@ fun EmployeeCard(
 
                 Spacer(modifier = Modifier.width(6.dp))
 
-                // Nút Xóa
+                // Nút xóa
                 OutlinedButton(
                     onClick = onDelete,
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
@@ -298,7 +286,7 @@ fun EmployeeCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Hàng 2: Họ và tên
+            // Họ và tên
             Text(
                 text = employee.fullname,
                 style = MaterialTheme.typography.titleMedium,
@@ -307,7 +295,7 @@ fun EmployeeCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Hàng 3: Email và SĐT
+            // Email và SĐT
             Text(
                 text = "✉️ ${employee.email ?: "Chưa có email"}",
                 style = MaterialTheme.typography.bodySmall,
@@ -323,7 +311,7 @@ fun EmployeeCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Hàng 4: Lương theo giờ (hourlyRate)
+            // Mức lương theo giờ
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -344,9 +332,7 @@ fun EmployeeCard(
     }
 }
 
-/**
- * Hộp thoại Nhập liệu Thêm / Sửa Nhân viên
- */
+// Dialog thêm hoặc chỉnh sửa nhân viên
 @Composable
 fun EmployeeFormDialog(
     employee: Employee?,
@@ -383,17 +369,17 @@ fun EmployeeFormDialog(
                     )
                 }
 
-                // Mã NV
+                // Nhập mã NV
                 OutlinedTextField(
                     value = code,
                     onValueChange = { code = it },
                     label = { Text("Mã nhân viên (vd: NV003)") },
-                    enabled = !isEditMode, // Không cho sửa mã khi edit
+                    enabled = !isEditMode,
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
 
-                // Họ tên
+                // Nhập họ tên
                 OutlinedTextField(
                     value = fullname,
                     onValueChange = { fullname = it },
@@ -402,7 +388,7 @@ fun EmployeeFormDialog(
                     singleLine = true
                 )
 
-                // Email
+                // Nhập email
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
@@ -412,7 +398,7 @@ fun EmployeeFormDialog(
                     singleLine = true
                 )
 
-                // SĐT
+                // Nhập số điện thoại
                 OutlinedTextField(
                     value = phone,
                     onValueChange = { phone = it },
@@ -422,7 +408,7 @@ fun EmployeeFormDialog(
                     singleLine = true
                 )
 
-                // Mức lương theo giờ
+                // Nhập lương theo giờ
                 OutlinedTextField(
                     value = hourlyRateStr,
                     onValueChange = { hourlyRateStr = it },
