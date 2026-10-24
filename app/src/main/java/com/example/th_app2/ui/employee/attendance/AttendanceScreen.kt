@@ -44,8 +44,8 @@ fun AttendanceScreen(
 
     val attendanceStatus = when {
         todayLog == null -> AttendanceStatus.NOT_STARTED
-        todayLog?.status == "CHECKED_IN" -> AttendanceStatus.WORKING
-        todayLog?.status == "COMPLETED" -> AttendanceStatus.COMPLETED
+        todayLog?.status == "In Progress" -> AttendanceStatus.WORKING
+        todayLog?.status == "Completed" -> AttendanceStatus.COMPLETED
         else -> AttendanceStatus.NOT_STARTED
     }
 
@@ -149,7 +149,7 @@ fun AttendanceScreen(
                                     fontWeight = FontWeight.Medium
                                 )
                             }
-                            if (todayLog?.totalHours != null) {
+                            if (todayLog?.totalHours != null && todayLog?.totalHours != 0.0) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
                                         "Tổng giờ",
@@ -180,17 +180,16 @@ fun AttendanceScreen(
                     }
                     val success = onCheckIn(employeeId)
                     if (success) {
-                        val now = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                        val now = SimpleDateFormat("HH:mm", Locale.getDefault())
                             .format(Calendar.getInstance().time)
                         val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                             .format(Calendar.getInstance().time)
                         todayLog = WorkLog(
                             employeeId = employeeId,
-                            date = today,
+                            workDate = today,
                             checkInTime = now,
                             checkOutTime = null,
-                            totalHours = null,
-                            status = "CHECKED_IN"
+                            status = "In Progress"
                         )
                         snackbarMessage = "Check-in thành công lúc $now"
                     } else {
@@ -227,7 +226,7 @@ fun AttendanceScreen(
                     }
                     val success = onCheckOut(employeeId)
                     if (success) {
-                        val now = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                        val now = SimpleDateFormat("HH:mm", Locale.getDefault())
                             .format(Calendar.getInstance().time)
                         val checkIn = todayLog?.checkInTime ?: return@Button
                         val totalH = calculateHours(checkIn, now)
@@ -235,11 +234,11 @@ fun AttendanceScreen(
                             .format(Calendar.getInstance().time)
                         todayLog = WorkLog(
                             employeeId = employeeId,
-                            date = today,
+                            workDate = today,
                             checkInTime = checkIn,
                             checkOutTime = now,
                             totalHours = totalH,
-                            status = "COMPLETED"
+                            status = "Completed"
                         )
                         snackbarMessage = "Check-out thành công! Tổng: ${String.format("%.1f", totalH)}h"
                     } else {
@@ -277,7 +276,7 @@ fun AttendanceScreen(
 }
 
 private fun calculateHours(checkIn: String, checkOut: String): Double {
-    val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
     val inTime = sdf.parse(checkIn) ?: return 0.0
     val outTime = sdf.parse(checkOut) ?: return 0.0
     val diffMs = outTime.time - inTime.time
